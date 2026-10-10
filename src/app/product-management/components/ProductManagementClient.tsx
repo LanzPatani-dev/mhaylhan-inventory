@@ -183,7 +183,7 @@ export default function ProductManagementClient() {
         if (error) {
           if (error.code?.startsWith('42')) throw error;
           if (error.code === '42501') {
-            toast.error('Supabase blocked this product insert. Apply the latest products RLS migration and confirm your signed-in account is an admin or active staff user.');
+            toast.error('Supabase rejected this product insert due to RLS. Confirm the latest migrations are applied and your account has an active user profile with admin or staff role.');
             return false;
           }
           if (error.code === '23505') { toast.error('A product with this barcode already exists.'); return false; }

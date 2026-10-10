@@ -115,7 +115,7 @@ export default function InventoryListClient() {
 
     if (error) {
       if (error.code === '23505') toast.error('A product with this barcode already exists.');
-      else if (error.code === '42501') toast.error('Supabase blocked this product insert. Confirm that you are signed in as an active user and apply the latest products RLS migration.');
+      else if (error.code === '42501') toast.error('Supabase rejected this product insert due to RLS. Confirm the latest migrations are applied and your account has an active user profile with admin or staff role.');
       else toast.error(`Could not add product: ${error.message}`);
       return false;
     }
@@ -339,7 +339,7 @@ export default function InventoryListClient() {
           <button
             type="button"
             onClick={() => setAddProductOpen(true)}
-            className="flex items-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-xl text-base font-bold shadow-lg ring-2 ring-primary/20 hover:bg-green-700 active:scale-95 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:bg-green-700 active:scale-95 transition-all"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
