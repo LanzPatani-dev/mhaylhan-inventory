@@ -14,17 +14,6 @@ interface LoginFormValues {
   rememberMe: boolean;
 }
 
-interface DemoCredential {
-  role: string;
-  email: string;
-  password: string;
-}
-
-const DEMO_CREDENTIALS: DemoCredential[] = [
-  { role: 'Admin', email: 'maria.admin@mhaylhan.ph', password: 'MhayAdmin@2026' },
-  { role: 'Staff', email: 'juan.staff@mhaylhan.ph', password: 'StaffPass@2026' },
-];
-
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -77,11 +66,6 @@ export default function LoginForm() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const autofill = (cred: DemoCredential) => {
-    setValue('email', cred.email);
-    setValue('password', cred.password);
   };
 
   return (
@@ -255,27 +239,6 @@ export default function LoginForm() {
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-8 p-4 bg-muted/50 rounded-xl border border-border">
-            <p className="text-xs font-600 text-muted-foreground mb-3 uppercase tracking-wide">Demo Accounts</p>
-            <div className="space-y-2">
-              {DEMO_CREDENTIALS.map((cred) => (
-                <button
-                  key={`demo-${cred.role}`}
-                  type="button"
-                  onClick={() => autofill(cred)}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-card border border-border rounded-lg hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
-                  suppressHydrationWarning
-                >
-                  <div>
-                    <span className="text-xs font-600 text-foreground">{cred.role}</span>
-                    <p className="text-xs text-muted-foreground font-mono">{cred.email}</p>
-                  </div>
-                  <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">Use →</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

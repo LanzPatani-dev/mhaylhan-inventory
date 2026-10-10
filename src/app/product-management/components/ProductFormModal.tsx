@@ -2,13 +2,14 @@
 
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import { Product } from './ProductManagementClient';
 import BarcodeScanner from '@/components/ui/BarcodeScanner';
 
 interface ProductFormModalProps {
   open: boolean;
   product: Product | null;
-  onSave: (data: Partial<Product>) => void;
+  onSave: (data: Partial<Product>) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -59,12 +60,15 @@ export default function ProductFormModal({ open, product, onSave, onClose }: Pro
   if (!open) return null;
 
   const onSubmit = async (data: FormValues) => {
-    await new Promise((r) => setTimeout(r, 600));
-    onSave({
-      ...data,
-      expirationDate: data.expirationDate || 'N/A',
-    });
-    reset();
+    try {
+      const saved = await onSave({
+        ...data,
+        expirationDate: data.expirationDate || 'N/A',
+      });
+      if (saved) reset();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save this product. Please try again.');
+    }
   };
 
   return (

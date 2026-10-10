@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const currentUser = user ?? session?.user ?? null;
 
     const determineRole = async () => {
-      const metadataRole = currentUser?.user_metadata?.role || currentUser?.app_metadata?.role;
+      const metadataRole = currentUser?.app_metadata?.role;
 
       if (metadataRole === 'admin' || metadataRole === 'staff') {
         setRole(metadataRole);

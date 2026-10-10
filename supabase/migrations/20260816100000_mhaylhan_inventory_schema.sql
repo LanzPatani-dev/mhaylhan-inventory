@@ -18,7 +18,7 @@ CREATE TYPE public.expiry_status AS ENUM ('Valid', 'Expiring Soon', 'Expiring (7
 
 DROP TYPE IF EXISTS public.transaction_type CASCADE;
 CREATE TYPE public.transaction_type AS ENUM ('STOCK-IN', 'STOCK-OUT', 'ADJUSTMENT');
-
+  
 DROP TYPE IF EXISTS public.category_status CASCADE;
 CREATE TYPE public.category_status AS ENUM ('Active', 'Inactive');
 
@@ -157,7 +157,7 @@ AS $$
 SELECT EXISTS (
   SELECT 1 FROM auth.users au
   WHERE au.id = auth.uid()
-  AND (au.raw_user_meta_data->>'role' = 'admin' OR au.raw_app_meta_data->>'role' = 'admin')
+  AND au.raw_app_meta_data->>'role' = 'admin'
 )
 $$;
 

@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import ProductFormModal from '@/app/product-management/components/ProductFormModal';
+import type { Product } from '@/app/product-management/components/ProductManagementClient';
 import { type InventoryItem, getInventoryRows, computeExpiryStatus, computeStockStatus } from '@/lib/mockInventory';
 
 // BACKEND INTEGRATION POINT: Fetch paginated inventory from /api/inventory?page=&limit=&filters=
@@ -30,6 +32,7 @@ export default function InventoryListClient() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [addProductOpen, setAddProductOpen] = useState(false);
   const inventoryView = searchParams.get('view');
 
   useEffect(() => {
@@ -86,6 +89,47 @@ export default function InventoryListClient() {
     setInventoryData(rows.length > 0 ? rows : getInventoryRows());
     setIsLoadingInventory(false);
   }, [supabase]);
+
+  const handleAddProduct = async (data: Partial<Product>): Promise<boolean> => {
+    const category = data.category
+      ? await supabase.from('categories').select('id').eq('name', data.category).maybeSingle()
+      : { data: null, error: null };
+
+    if (category.error) {
+      toast.error(`Could not look up product category: ${category.error.message}`);
+      return false;
+    }
+
+    const { error } = await supabase.from('products').insert({
+      barcode: data.barcode,
+      product_name: data.productName,
+      category_id: category.data?.id ?? null,
+      unit: data.unit,
+      quantity: Number(data.quantity) || 0,
+      minimum_stock: Number(data.minimumStock) || 0,
+      expiration_date: data.expirationDate || 'N/A',
+      status: data.status || 'Active',
+      stock_status: computeStockStatus(Number(data.quantity) || 0, Number(data.minimumStock) || 0),
+      expiry_status: computeExpiryStatus(data.expirationDate || 'N/A'),
+    });
+
+    if (error) {
+      if (error.code === '23505') toast.error('A product with this barcode already exists.');
+      else if (error.code === '42501') toast.error('Supabase blocked this product insert. Confirm that you are signed in as an active user and apply the latest products RLS migration.');
+      else toast.error(`Could not add product: ${error.message}`);
+      return false;
+    }
+
+    toast.success('Product added to inventory.');
+    setAddProductOpen(false);
+    setSearch('');
+    setCategoryFilter('All');
+    setStockFilter('All');
+    setExpiryFilter('All');
+    setPage(1);
+    await refreshInventory();
+    return true;
+  };
 
   useEffect(() => {
     void refreshInventory();
@@ -284,14 +328,24 @@ export default function InventoryListClient() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Inventory List</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isLoadingInventory ? 'Loading current stock…' : `Complete stock overview — ${inventoryData.length} products tracked`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setAddProductOpen(true)}
+            className="flex items-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-xl text-base font-bold shadow-lg ring-2 ring-primary/20 hover:bg-green-700 active:scale-95 transition-all"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add Product
+          </button>
           <Link
             href="/stock-in"
             className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
@@ -323,6 +377,13 @@ export default function InventoryListClient() {
           </button>
         </div>
       </div>
+
+      <ProductFormModal
+        open={addProductOpen}
+        product={null}
+        onSave={handleAddProduct}
+        onClose={() => setAddProductOpen(false)}
+      />
 
       {/* Alert summary row */}
       {(outOfStock > 0 || critical > 0 || expiredCount > 0) && (

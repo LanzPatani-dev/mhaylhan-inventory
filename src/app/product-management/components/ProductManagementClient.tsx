@@ -136,7 +136,7 @@ export default function ProductManagementClient() {
     else setSelectedIds(new Set(paged.map((p) => p.id)));
   };
 
-  const handleSave = async (data: Partial<Product>) => {
+  const handleSave = async (data: Partial<Product>): Promise<boolean> => {
     try {
       // Find category_id from name
       const catId = Object.entries(categoryMap).find(([, name]) => name === data.category)?.[0] || null;
@@ -160,7 +160,7 @@ export default function ProductManagementClient() {
         if (error) {
           if (error.code?.startsWith('42')) throw error;
           toast.error('Failed to update product');
-          return;
+          return false;
         }
         toast.success('Product updated successfully.');
       } else {
@@ -182,9 +182,13 @@ export default function ProductManagementClient() {
 
         if (error) {
           if (error.code?.startsWith('42')) throw error;
-          if (error.code === '23505') { toast.error('A product with this barcode already exists.'); return; }
+          if (error.code === '42501') {
+            toast.error('Supabase blocked this product insert. Apply the latest products RLS migration and confirm your signed-in account is an admin or active staff user.');
+            return false;
+          }
+          if (error.code === '23505') { toast.error('A product with this barcode already exists.'); return false; }
           toast.error('Failed to add product');
-          return;
+          return false;
         }
         toast.success('Product added successfully.');
       }
@@ -192,8 +196,10 @@ export default function ProductManagementClient() {
       setModalOpen(false);
       setEditProduct(null);
       await loadData();
+      return true;
     } catch (err: any) {
       toast.error('Error: ' + err.message);
+      return false;
     }
   };
 
