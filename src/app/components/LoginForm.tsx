@@ -12,27 +12,54 @@ interface LoginFormValues {
   email: string;
   password: string;
   rememberMe: boolean;
+  fullName: string;
+  username: string;
 }
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [signupMode, setSignupMode] = useState(false);
   const router = useRouter();
   const { signIn } = useAuth();
 
   const {
     register,
     handleSubmit,
-    setValue,
     setError,
+    clearErrors,
+    reset,
     formState: { errors },
   } = useForm<LoginFormValues>({
-    defaultValues: { email: '', password: '', rememberMe: false },
+    defaultValues: { email: '', password: '', rememberMe: false, fullName: '', username: '' },
   });
 
   const onSubmit = async (data: LoginFormValues) => {
     setLoading(true);
     try {
+      if (signupMode) {
+        const supabase = createClient();
+        const { error } = await supabase.from('staff_signup_requests').insert({
+          full_name: data.fullName.trim(),
+          username: data.username.trim(),
+          email: data.email.trim().toLowerCase(),
+        });
+
+        if (error) {
+          setError('root', {
+            message: error.code === '23505'
+              ? 'A request for this email or username already exists. Contact an administrator if you need help.'
+              : error.message || 'Could not submit your staff signup request.',
+          });
+          return;
+        }
+
+        toast.success('Signup request sent. An administrator must approve it before you can sign in.');
+        reset({ email: '', password: '', rememberMe: false, fullName: '', username: '' });
+        setSignupMode(false);
+        return;
+      }
+
       await signIn(data.email, data.password);
 
       // Determine role from user profile
@@ -51,7 +78,7 @@ export default function LoginForm() {
           .update({ last_login: new Date().toISOString() })
           .eq('id', user.id);
 
-        const role = profile?.role || user.user_metadata?.role || 'staff';
+        const role = profile?.role || user.app_metadata?.role || 'staff';
         toast.success(`Welcome back! Redirecting to ${role} dashboard...`);
 
         setTimeout(() => {
@@ -129,8 +156,10 @@ export default function LoginForm() {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-700 text-foreground mb-1">Sign in to your account</h2>
-            <p className="text-muted-foreground text-sm">Enter your credentials to access the inventory system.</p>
+            <h2 className="text-2xl font-700 text-foreground mb-1">{signupMode ? 'Request a Staff Account' : 'Sign in to your account'}</h2>
+            <p className="text-muted-foreground text-sm">
+              {signupMode ? 'Submit your details. An administrator must approve your request before you can sign in.' : 'Enter your credentials to access the inventory system.'}
+            </p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
@@ -141,6 +170,35 @@ export default function LoginForm() {
                 </svg>
                 <p className="text-sm text-danger">{errors.root.message}</p>
               </div>
+            )}
+
+            {signupMode && (
+              <>
+                <div>
+                  <label htmlFor="fullName" className="block text-sm font-600 text-foreground mb-1.5">Full Name</label>
+                  <input
+                    id="fullName"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Your full name"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-input text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary"
+                    {...register('fullName', { required: signupMode ? 'Full name is required.' : false, minLength: { value: 2, message: 'Enter at least 2 characters.' } })}
+                  />
+                  {errors.fullName && <p className="text-xs text-danger mt-1">{errors.fullName.message}</p>}
+                </div>
+                <div>
+                  <label htmlFor="username" className="block text-sm font-600 text-foreground mb-1.5">Username</label>
+                  <input
+                    id="username"
+                    type="text"
+                    autoComplete="username"
+                    placeholder="Choose a username"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-input text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary"
+                    {...register('username', { required: signupMode ? 'Username is required.' : false, minLength: { value: 3, message: 'Username must be at least 3 characters.' } })}
+                  />
+                  {errors.username && <p className="text-xs text-danger mt-1">{errors.username.message}</p>}
+                </div>
+              </>
             )}
 
             <div>
@@ -163,6 +221,7 @@ export default function LoginForm() {
               />
               {errors.email && <p className="text-xs text-danger mt-1">{errors.email.message}</p>}
             </div>
+            {!signupMode && (
 
             <div>
               <label htmlFor="password" className="block text-sm font-600 text-foreground mb-1.5">
@@ -179,8 +238,8 @@ export default function LoginForm() {
                     errors.password ? 'border-danger focus:border-danger' : 'border-input focus:border-primary'
                   }`}
                   {...register('password', {
-                    required: 'Password is required.',
-                    minLength: { value: 6, message: 'Password must be at least 6 characters.' },
+                    required: signupMode ? false : 'Password is required.',
+                    minLength: signupMode ? undefined : { value: 6, message: 'Password must be at least 6 characters.' },
                   })}
                 />
                 <button
@@ -205,8 +264,9 @@ export default function LoginForm() {
               </div>
               {errors.password && <p className="text-xs text-danger mt-1">{errors.password.message}</p>}
             </div>
+            )}
 
-            <div className="flex items-center gap-2">
+            {!signupMode && <div className="flex items-center gap-2">
               <input
                 id="rememberMe"
                 type="checkbox"
@@ -217,7 +277,7 @@ export default function LoginForm() {
               <label htmlFor="rememberMe" className="text-sm text-muted-foreground cursor-pointer">
                 Remember me for 30 days
               </label>
-            </div>
+            </div>}
 
             <button
               type="submit"
@@ -234,10 +294,24 @@ export default function LoginForm() {
                   Signing in...
                 </>
               ) : (
-                'Sign In'
+                signupMode ? 'Request Approval' : 'Sign In'
               )}
             </button>
           </form>
+
+          <div className="mt-5 text-center text-sm text-muted-foreground">
+            {signupMode ? 'Already have an account?' : 'New staff member?'}{' '}
+            <button
+              type="button"
+              onClick={() => {
+                clearErrors();
+                setSignupMode((current) => !current);
+              }}
+              className="font-semibold text-primary hover:underline"
+            >
+              {signupMode ? 'Sign in' : 'Request staff account'}
+            </button>
+          </div>
 
         </div>
       </div>

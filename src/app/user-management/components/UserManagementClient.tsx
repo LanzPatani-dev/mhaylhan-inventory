@@ -4,6 +4,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { toast } from 'sonner';
+import StaffSignupApprovals from './StaffSignupApprovals';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams } from 'next/navigation';
 
 interface StaffUser {
   id: string;
@@ -40,6 +43,9 @@ export default function UserManagementClient() {
   const [deactivateTarget, setDeactivateTarget] = useState<StaffUser | null>(null);
   const [resetTarget, setResetTarget] = useState<StaffUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const { role: currentRole } = useAuth();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'approvals' ? 'approvals' : 'users';
   const supabase = createClient();
 
   useEffect(() => {
@@ -248,8 +254,21 @@ export default function UserManagementClient() {
         </button>
       </div>
 
+      {currentRole === 'admin' && (
+        <div className="flex gap-2 border-b border-border">
+          <a href="/user-management" className={`px-4 py-2 text-sm font-semibold border-b-2 ${activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>
+            Staff Accounts
+          </a>
+          <a href="/user-management?tab=approvals" className={`px-4 py-2 text-sm font-semibold border-b-2 ${activeTab === 'approvals' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>
+            Signup Approvals
+          </a>
+        </div>
+      )}
+
+      {currentRole === 'admin' && <StaffSignupApprovals active={activeTab === 'approvals'} />}
+
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {activeTab === 'users' && <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Total Accounts', value: stats.total, color: 'text-primary', bg: 'bg-primary/5 border-primary/20' },
           { label: 'Active', value: stats.active, color: 'text-success', bg: 'bg-success/5 border-success/20' },
@@ -261,10 +280,10 @@ export default function UserManagementClient() {
             <p className={`text-3xl font-700 tabular-nums mt-1 ${s.color}`}>{s.value}</p>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Filters */}
-      <div className="bg-card rounded-xl border border-border p-4">
+      {activeTab === 'users' && <div className="bg-card rounded-xl border border-border p-4">
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex-1 min-w-[200px] relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -283,10 +302,10 @@ export default function UserManagementClient() {
             <option value="Inactive">Inactive</option>
           </select>
         </div>
-      </div>
+      </div>}
 
       {/* Table */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
+      {activeTab === 'users' && <div className="bg-card rounded-xl border border-border overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <h2 className="text-base font-700 text-foreground">Staff Accounts</h2>
           <span className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full">{filtered.length} accounts</span>
@@ -361,10 +380,10 @@ export default function UserManagementClient() {
             </table>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Add/Edit Modal */}
-      {modalOpen && (
+      {activeTab === 'users' && modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
           <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">

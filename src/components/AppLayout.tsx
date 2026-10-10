@@ -1,9 +1,10 @@
 'use client';
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from './Sidebar';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -13,7 +14,9 @@ interface AppLayoutProps {
 export default function AppLayout({ children, role = 'admin' }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [pendingSignupCount, setPendingSignupCount] = useState(0);
   const { user, role: userRole } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
 
   const effectiveRole = (userRole === 'admin' || userRole === 'staff') ? userRole : role;
 
@@ -24,6 +27,36 @@ export default function AppLayout({ children, role = 'admin' }: AppLayoutProps) 
     .join('')
     .toUpperCase()
     .slice(0, 2);
+
+  const refreshPendingSignupCount = useCallback(async () => {
+    if (!user || userRole !== 'admin') {
+      setPendingSignupCount(0);
+      return;
+    }
+
+    const { count, error } = await supabase
+      .from('staff_signup_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (!error) setPendingSignupCount(count || 0);
+  }, [supabase, user, userRole]);
+
+  useEffect(() => {
+    void refreshPendingSignupCount();
+    if (!user || userRole !== 'admin') return;
+
+    const channel = supabase
+      .channel('admin-staff-signup-requests')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'staff_signup_requests',
+      }, () => void refreshPendingSignupCount())
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [refreshPendingSignupCount, supabase, user, userRole]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -79,14 +112,14 @@ export default function AppLayout({ children, role = 'admin' }: AppLayoutProps) 
           <div className="flex items-center gap-2">
             <ThemeToggle />
 
-            {/* Notification bell */}
-            <button className="relative p-2 rounded-md hover:bg-muted transition-colors">
+            {/* Admin notifications */}
+            <a href={userRole === 'admin' ? '/user-management?tab=approvals' : '/transaction-log'} aria-label={pendingSignupCount ? `${pendingSignupCount} pending staff signup requests` : 'Notifications'} className="relative p-2 rounded-md hover:bg-muted transition-colors">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full" />
-            </button>
+              {pendingSignupCount > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-danger text-white rounded-full text-[10px] leading-4 text-center">{pendingSignupCount > 9 ? '9+' : pendingSignupCount}</span>}
+            </a>
 
             {/* User avatar */}
             <div className="flex items-center gap-2 pl-2 border-l border-border">
