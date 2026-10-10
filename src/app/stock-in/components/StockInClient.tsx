@@ -77,35 +77,6 @@ const normalizeExpiryValue = (value: string) => {
   return trimmed;
 };
 
-const getBatchExpiryOptions = (product?: Product | null) => {
-  const values = new Set<string>();
-  const options: Array<{ value: string; label: string }> = [];
-
-  if (product?.expirationDate) {
-    const normalized = normalizeExpiryValue(product.expirationDate);
-    values.add(normalized);
-    options.push({
-      value: normalized,
-      label: `${new Date(normalized).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} (current product expiry)`,
-    });
-  }
-
-  const baseDate = new Date();
-  [3, 6, 9, 12, 18, 24].forEach((months) => {
-    const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + months, 1);
-    const formatted = formatDateForInput(date);
-    if (!values.has(formatted)) {
-      values.add(formatted);
-      options.push({
-        value: formatted,
-        label: `${new Date(formatted).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} (${months} months)`,
-      });
-    }
-  });
-
-  return options;
-};
-
 export default function StockInClient() {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [foundProduct, setFoundProduct] = useState<Product | null>(null);
@@ -129,8 +100,6 @@ export default function StockInClient() {
   });
 
   const watchedQty = watch('quantity');
-  const batchExpiryOptions = getBatchExpiryOptions(foundProduct);
-
   const handleBarcodeSearch = async (barcode?: string) => {
     const code = (barcode || barcodeInput).trim();
     if (!code) return;
@@ -492,18 +461,12 @@ export default function StockInClient() {
                 Expiration Date of This Batch
               </label>
               <p className="text-xs text-muted-foreground mb-1.5">Choose the expiry date for this incoming batch</p>
-              <select
+              <input
+                type="date"
                 disabled={!foundProduct}
-                className="w-full px-3 py-2.5 rounded-lg border border-input text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed bg-background"
+                className="w-full px-3 py-2 rounded-lg border border-input text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed bg-background"
                 {...register('expirationDate')}
-              >
-                <option value="">Select batch expiry date</option>
-                {batchExpiryOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             {/* Transaction Date (readonly) */}
