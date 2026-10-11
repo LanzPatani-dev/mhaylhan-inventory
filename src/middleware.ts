@@ -63,6 +63,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (user && pathname.startsWith('/reset-password')) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const hasRecovery = request.nextUrl.searchParams.get('type') === 'recovery';
+    const hasInvite = request.nextUrl.searchParams.has('code');
+    if (!hasRecovery && !hasInvite && !session?.user) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+
   return supabaseResponse;
 }
 

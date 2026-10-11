@@ -1,6 +1,7 @@
 -- Public staff signup requests are stored without passwords or auth accounts.
 CREATE TABLE IF NOT EXISTS public.staff_signup_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT NOT NULL,
   username TEXT NOT NULL,
   email TEXT NOT NULL,
@@ -9,6 +10,9 @@ CREATE TABLE IF NOT EXISTS public.staff_signup_requests (
   reviewed_at TIMESTAMPTZ,
   reviewed_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL
 );
+
+ALTER TABLE public.staff_signup_requests
+ADD COLUMN IF NOT EXISTS auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX IF NOT EXISTS staff_signup_requests_email_lower_unique
 ON public.staff_signup_requests (lower(email)) WHERE status = 'pending';

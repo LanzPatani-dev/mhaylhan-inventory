@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     signupRequest.email,
     {
       data: { full_name: signupRequest.full_name, username: signupRequest.username, role: 'staff' },
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/auth/callback`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/auth/callback?next=/reset-password`,
     }
   );
 

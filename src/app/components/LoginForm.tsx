@@ -11,6 +11,7 @@ import AppLogo from '@/components/ui/AppLogo';
 interface LoginFormValues {
   email: string;
   password: string;
+  confirmPassword: string;
   rememberMe: boolean;
   fullName: string;
   username: string;
@@ -20,6 +21,7 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [signupMode, setSignupMode] = useState(false);
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
   const router = useRouter();
   const { signIn } = useAuth();
 
@@ -31,31 +33,67 @@ export default function LoginForm() {
     reset,
     formState: { errors },
   } = useForm<LoginFormValues>({
-    defaultValues: { email: '', password: '', rememberMe: false, fullName: '', username: '' },
+    defaultValues: { email: '', password: '', confirmPassword: '', rememberMe: false, fullName: '', username: '' },
   });
 
   const onSubmit = async (data: LoginFormValues) => {
     setLoading(true);
     try {
-      if (signupMode) {
+      if (forgotPasswordMode) {
         const supabase = createClient();
-        const { error } = await supabase.from('staff_signup_requests').insert({
-          full_name: data.fullName.trim(),
-          username: data.username.trim(),
-          email: data.email.trim().toLowerCase(),
+        const { error } = await supabase.auth.resetPasswordForEmail(data.email.trim(), {
+          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
         });
-
         if (error) {
-          setError('root', {
-            message: error.code === '23505'
-              ? 'A request for this email or username already exists. Contact an administrator if you need help.'
-              : error.message || 'Could not submit your staff signup request.',
-          });
+          setError('root', { message: error.message });
+          return;
+        }
+        toast.success('If an account exists for that email, a password reset link has been sent.');
+        setForgotPasswordMode(false);
+        return;
+      }
+
+      if (signupMode) {
+        if (data.password.length < 8) {
+          setError('password', { message: 'Password must be at least 8 characters.' });
+          return;
+        }
+        if (data.password !== data.confirmPassword) {
+          setError('confirmPassword', { message: 'Passwords do not match.' });
           return;
         }
 
+        const supabase = createClient();
+        const { data: signup, error: signupError } = await supabase.auth.signUp({
+          email: data.email.trim().toLowerCase(),
+          password: data.password,
+          options: {
+            data: { full_name: data.fullName.trim(), username: data.username.trim(), role: 'staff' },
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+
+        if (signupError || !signup.user) {
+          setError('root', { message: signupError?.message || 'Could not create signup request.' });
+          return;
+        }
+
+        const response = await fetch('/api/staff-signup-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authUserId: signup.user.id, fullName: data.fullName.trim(), username: data.username.trim() }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (signup.session) await supabase.auth.signOut();
+          setError('root', { message: result.error || 'Could not submit staff signup request.' });
+          return;
+        }
+
+        if (signup.session) await supabase.auth.signOut();
+
         toast.success('Signup request sent. An administrator must approve it before you can sign in.');
-        reset({ email: '', password: '', rememberMe: false, fullName: '', username: '' });
+        reset({ email: '', password: '', confirmPassword: '', rememberMe: false, fullName: '', username: '' });
         setSignupMode(false);
         return;
       }
@@ -68,9 +106,15 @@ export default function LoginForm() {
       if (user) {
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('role')
+          .select('role, is_active')
           .eq('id', user.id)
           .single();
+
+        if (profile && !profile.is_active) {
+          await supabase.auth.signOut();
+          setError('root', { message: 'Your account is awaiting administrator approval or is inactive.' });
+          return;
+        }
 
         // Update last_login
         await supabase
@@ -156,9 +200,9 @@ export default function LoginForm() {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-700 text-foreground mb-1">{signupMode ? 'Request a Staff Account' : 'Sign in to your account'}</h2>
+            <h2 className="text-2xl font-700 text-foreground mb-1">{forgotPasswordMode ? 'Reset your password' : signupMode ? 'Request a Staff Account' : 'Sign in to your account'}</h2>
             <p className="text-muted-foreground text-sm">
-              {signupMode ? 'Submit your details. An administrator must approve your request before you can sign in.' : 'Enter your credentials to access the inventory system.'}
+              {forgotPasswordMode ? 'Enter your email and we’ll send a secure password reset link.' : signupMode ? 'Submit your details. An administrator must approve your request before you can sign in.' : 'Enter your credentials to access the inventory system.'}
             </p>
           </div>
 
@@ -172,7 +216,7 @@ export default function LoginForm() {
               </div>
             )}
 
-            {signupMode && (
+            {signupMode && !forgotPasswordMode && (
               <>
                 <div>
                   <label htmlFor="fullName" className="block text-sm font-600 text-foreground mb-1.5">Full Name</label>
@@ -221,7 +265,7 @@ export default function LoginForm() {
               />
               {errors.email && <p className="text-xs text-danger mt-1">{errors.email.message}</p>}
             </div>
-            {!signupMode && (
+            {!forgotPasswordMode && (
 
             <div>
               <label htmlFor="password" className="block text-sm font-600 text-foreground mb-1.5">
@@ -238,8 +282,8 @@ export default function LoginForm() {
                     errors.password ? 'border-danger focus:border-danger' : 'border-input focus:border-primary'
                   }`}
                   {...register('password', {
-                    required: signupMode ? false : 'Password is required.',
-                    minLength: signupMode ? undefined : { value: 6, message: 'Password must be at least 6 characters.' },
+                    required: 'Password is required.',
+                    minLength: { value: signupMode ? 8 : 6, message: `Password must be at least ${signupMode ? 8 : 6} characters.` },
                   })}
                 />
                 <button
@@ -266,7 +310,7 @@ export default function LoginForm() {
             </div>
             )}
 
-            {!signupMode && <div className="flex items-center gap-2">
+            {!signupMode && !forgotPasswordMode && <div className="flex items-center gap-2">
               <input
                 id="rememberMe"
                 type="checkbox"
@@ -294,24 +338,35 @@ export default function LoginForm() {
                   Signing in...
                 </>
               ) : (
-                signupMode ? 'Request Approval' : 'Sign In'
+                forgotPasswordMode ? 'Send Reset Link' : signupMode ? 'Request Approval' : 'Sign In'
               )}
             </button>
           </form>
 
           <div className="mt-5 text-center text-sm text-muted-foreground">
-            {signupMode ? 'Already have an account?' : 'New staff member?'}{' '}
+            {forgotPasswordMode ? 'Remembered your password?' : signupMode ? 'Already have an account?' : 'New staff member?'}{' '}
             <button
               type="button"
               onClick={() => {
                 clearErrors();
-                setSignupMode((current) => !current);
+                if (forgotPasswordMode) setForgotPasswordMode(false);
+                else setSignupMode((current) => !current);
               }}
               className="font-semibold text-primary hover:underline"
             >
-              {signupMode ? 'Sign in' : 'Request staff account'}
+              {forgotPasswordMode ? 'Sign in' : signupMode ? 'Sign in' : 'Request staff account'}
             </button>
           </div>
+
+          {!signupMode && !forgotPasswordMode && (
+            <button
+              type="button"
+              onClick={() => { clearErrors(); setForgotPasswordMode(true); }}
+              className="mt-3 w-full text-center text-sm font-semibold text-primary hover:underline"
+            >
+              Forgot password?
+            </button>
+          )}
 
         </div>
       </div>
